@@ -72,13 +72,63 @@ class AgentFunction {
 		scream = tp.getScream();
 		
 		if (bump == true || glitter == true || breeze == true || stench == true || scream == true) {
-			// do something...?
+			// Rule 01: When feel "Glitter" perform "GRAB"
+			if (glitter) {
+				return Action.GRAB;
+			}
+			// Rule 02: You Killed the Wumpus in your last move, you could move forward.
+			// But there could be a Pit but also the Gold.
+			if (scream) {
+				return Action.GO_FORWARD;
+			}
+
+			// Rule 03: When sense "Bump", just turn to either of the sides.
+			// We have no percept history to determine our last turn or direction.
+			if (bump) {
+				return (rand.nextBoolean()) ? Action.TURN_LEFT : Action.TURN_RIGHT;
+			}
+
+			// Rule 04: When sense "Stench", since we dont have history, perform randomly:
+			// Go forward, turn left, turn right or shoot.
+			// Combination of stench and scream will be effective only with historical
+			// percepts
+			if (stench) {
+				return Action.GRAB;
+				/*int num = rand.nextInt(4);
+				switch (num) {
+				case 1:
+					return Action.GO_FORWARD;
+				case 2:
+					return Action.TURN_LEFT;
+				case 3:
+					return Action.TURN_RIGHT;
+				default:
+					return Action.SHOOT;
+				}
+				*/
+			}
+			// Rule 05: When sense "Breeze", since we have no historical percepts.
+			// Decide randomly between "Go forward" and "Turn to any side"
+			if (breeze) {
+				return Action.GRAB;
+				//return randomMove();
+			}
 		}
-		
-		// return action to be performed
-	    return actionTable[rand.nextInt(8)];	    
+		return randomMove();
 	}
 	
+	public int randomMove() {
+		int num = rand.nextInt(3);
+		switch (num) {
+		case 1:
+			return Action.GO_FORWARD;
+		case 2:
+			return Action.TURN_LEFT;
+		default:
+			return Action.TURN_RIGHT;
+		}
+	}
+
 	// public method to return the agent's name
 	// do not remove this method
 	public String getAgentName() {
