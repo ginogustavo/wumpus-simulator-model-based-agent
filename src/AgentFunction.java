@@ -15,6 +15,7 @@
  * 
  */
 
+
 import java.util.Queue;
 import java.util.Random;
 
@@ -77,125 +78,121 @@ class AgentFunction {
 		scream = tp.getScream();
 		
 		int squareKey = wenv.getCurrentAgentPosition();
-		//System.out.println(wenv);
-		//printStatus(wenv);
+
 		if (bump == true || glitter == true || breeze == true || stench == true || scream == true) {
+			
 			// Rule 01: When feel "Glitter" perform "GRAB"
 			if (glitter) {
 				return Action.GRAB;
 			}
 
-			// Rule 02: if has actions pending, then, perform those.
-			if(!wenv.getPendingActions().isEmpty()) {
-				return move(wenv.getPendingActions().remove(), wenv, null);
+			// Rule 02: if has pending actions, then, perform those first.
+			if (!wenv.getPendingActions().isEmpty()) {
+				Move move = wenv.getPendingActions().remove();
+				if (move == Move.LOOK_FOR_WUMPUS) {
+					wenv.addMovesToPointAndShoot(); // methods sets more actions.
+					move = wenv.getPendingActions().remove();
+				}
+				return move(move, wenv, null);
 			}
-			
-			if(breeze && stench) {
+
+			// Rule 03: After Shot (using available arrow property), Wumpus did not get killed.
+			if (!wenv.isArrowAvailable() && !wenv.isEnvUpdatedAfterShot()) {
+				wenv.updateAfterShot(false); // Not Killed
+				wenv.setEnvUpdatedAfterShot(true);
+			}
+
+			//Rule 04: Sensors can detect Breeze, Stench and both in the same square
+			//So, update it with the appropriate states. 
+			if (breeze && stench) {
 				wenv.getSquares().get(squareKey).setState(State.BREEZE_AND_STENCH);
 				wenv.updateAdjacents(State.POSSIBLE_PIT_OR_WUMPUS);
-				if(wenv.getCurrentAgentPosition()==11) {
-					return Action.GRAB;
-				}else {
-					// TODO: Analyze history is no history , exit
-					wenv.foundRisk();						
+
+				if (wenv.getCurrentAgentPosition() == 11) {
+					if (wenv.getLastSquarePosition() == 0) {
+						wenv.setArrowAvailable(false);
+						return Action.SHOOT;
+					} else {
+						return Action.GRAB;
+					}
+				} else {
+					wenv.foundRisk();
 					Move move = wenv.getPendingActions().remove();
 					return move(move, wenv, null);
 				}
-				//Set queue actions of returning back (R, R, F) // TODO ANALYZE possible scenarios
-			}else if (breeze) {
-				//Mark current one as OK-withBREEZE
+			} else if (breeze) {
 				wenv.getSquares().get(squareKey).setState(State.BREEZE);
-				//Mark adjacent squares as possible PIT
 				wenv.updateAdjacents(State.POSSIBLE_PIT);
-				//Set queue actions of returning back (R, R, F) // TODO ANALYZE possible scenarios
-				
-				if(wenv.getCurrentAgentPosition()==11) {
+				if (wenv.getCurrentAgentPosition() == 11 && wenv.getLastSquarePosition() == 0) {
 					return Action.GRAB;
-				}else {
-					// TODO: Analyze history is no history , exit
-					wenv.foundRisk();						
-					Move move = wenv.getPendingActions().remove();
-					return move(move, wenv, null);
-				}
-				
-			}else if (stench) {
-				//Mark current one as OK-withSTENCH
-				wenv.getSquares().get(squareKey).setState(State.STENCH);
-				//Mark adjacent squares as possible WUMPUS
-				wenv.updateAdjacents(State.POSSIBLE_WUMPUS);
-				if(wenv.getCurrentAgentPosition()==11) {
-					return Action.GRAB;
-				}else {
-					// TODO: Analyze history is no history , exit
-					wenv.foundRisk();						
+				} else {
+					wenv.foundRisk();
 					Move move = wenv.getPendingActions().remove();
 					return move(move, wenv, null);
 				}
 
+			} else if (stench) {
+				wenv.getSquares().get(squareKey).setState(State.STENCH);
+				wenv.updateAdjacents(State.POSSIBLE_WUMPUS);
+				if (wenv.getCurrentAgentPosition() == 11 && wenv.getLastSquarePosition() == 0) {
+					wenv.setArrowAvailable(false);
+					return Action.SHOOT;
+				} else {
+					wenv.foundWumpusRisk();
+					Move move = wenv.getPendingActions().remove();
+					return move(move, wenv, null);
+				}
 			}
 			
-			// Rule 02: You Killed the Wumpus in your last move, you could move forward.
-			// But there could be a Pit but also the Gold.
+			//Rule 05: Once perceive Scream, Wumpus got killed, then update squares appropriately.
 			if (scream) {
-				return Action.GO_FORWARD;
+				wenv.updateAfterShot(true); // Killed
+				return move(Move.GO_FORWARD, wenv, State.OK);
 			}
 
-			// Rule 03: When sense "Bump", just turn to either of the sides.
-			// We have no percept history to determine our last turn or direction.
+
+			// Rule 06: When sense "Bump", just turn to available side
 			if (bump) {
-				
 				Queue<Move> pendingMoves = wenv.moveToSides();
 				wenv.setPendingActions(pendingMoves);
-				if(!pendingMoves.isEmpty()) {
+				if (!pendingMoves.isEmpty()) {
 					Move move = wenv.getPendingActions().remove();
 					return move(move, wenv, null);
 				}
-			
 			}
 			
 		}else {
-			wenv.getSquares().get(squareKey).setState(State.OK);
+			
+			
+			//Rule 07: Sensors, did not catch anything, So, we can update current and Adjacent squares
+			//Move to one of the either sides.		
+			if (wenv.getSquares().get(squareKey).getState() == State.OK) {
+				wenv.getSquares().get(squareKey).setState(State.OK_MORE_1_VISIT);
+			}
+			if (wenv.getSquares().get(squareKey).getState() != State.OK_MORE_1_VISIT) {
+				wenv.getSquares().get(squareKey).setState(State.OK);
+			}
 			wenv.setOKAdjacent();
 			Queue<Move> pendingMoves = wenv.moveToSides();
 			wenv.setPendingActions(pendingMoves);
-			
 			Move nextMove = wenv.getPendingActions().remove();
+			return move(nextMove, wenv, null); //State.OK
 			
-			return move(nextMove, wenv, State.OK);
 		}
-		return Action.GO_FORWARD; //randomMove
+		return Action.GO_FORWARD;
 	}
 	
-	public int randomMove() {
-		int num = rand.nextInt(3);
-		switch (num) {
-		case 1:
-			return Action.GO_FORWARD;
-		case 2:
-			return Action.TURN_LEFT;
-		default:
-			return Action.TURN_RIGHT;
-		}
-	}
 
 	
-	public void printStatus(WEnvironment we) {
-		int x = we.getCurrentAgentCoordinate()[0];
-		int y = we.getCurrentAgentCoordinate()[1];
-		int pos = we.getCurrentAgentPosition();
-		char dir = we.getCurrentDirection();
-		Move mov = we.getLastMove();
-		int[] lastsqCor = we.getLastSquareCoordinate();
-		int lastSqPos = we.getLastSquarePosition();
-		
-		StringBuilder sb = new StringBuilder();
-		sb.append("Ag Curr Coord: "+x+","+y+"Ag Curr Pos: "+pos+"\n");
-		sb.append("Agent Current Direction : "+dir+"\n");
-		sb.append("Last Sq Coo: "+lastsqCor[0]+"-"+lastsqCor[1]+"Last Sq Pos: "+lastSqPos+"\n");
-		System.out.println(sb.toString());
-	}
 	
-	
+	/**
+	 * Based on the given move, validate the change of direction or location
+	 * 
+	 * @param move to perform
+	 * @param environment variable
+	 * @param state to set in the square
+	 * @return Action to perform (Framework require type Action)
+	 */
 	public int move(Move move, WEnvironment wenv, State state) {
 		int[] curr_pos = wenv.getCurrentAgentCoordinate();
 		int[] new_pos = {curr_pos[0], curr_pos[1]};
@@ -206,6 +203,9 @@ class AgentFunction {
 			wenv.getSquares().get(wenv.getCurrentAgentPosition()).setState(state);
 
 		switch(move) {
+			case SHOT: 
+				wenv.setArrowAvailable(false);
+				return Action.SHOOT; 
 			case GO_FORWARD:
 				wenv.setLastSquareCoordinate(curr_pos);
 				//update position
@@ -226,7 +226,6 @@ class AgentFunction {
 				wenv.setCurrentAgentCoordinate(new_pos);
 				wenv.setLastMove(Move.GO_FORWARD);
 				return Action.GO_FORWARD;
-				//break;
 			case TURN_LEFT:
 				//update direction
 				switch(direction) {
@@ -246,7 +245,6 @@ class AgentFunction {
 				wenv.setCurrentDirection(newdirection);
 				wenv.setLastMove(Move.TURN_LEFT);
 				return Action.TURN_LEFT;
-				//break;
 			default: //case TURN_RIGHT
 				//update direction
 				switch(direction) {
@@ -266,10 +264,7 @@ class AgentFunction {
 				wenv.setCurrentDirection(newdirection);
 				wenv.setLastMove(Move.TURN_RIGHT);
 				return Action.TURN_RIGHT;
-				//break;
-		}
-			
-		
+		}		
 	}
 	
 	// public method to return the agent's name
