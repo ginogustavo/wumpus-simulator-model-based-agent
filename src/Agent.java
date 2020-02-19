@@ -15,7 +15,11 @@
  * 
  */
 
+import java.util.LinkedList;
 import java.util.Random;
+
+import model_based.Move;
+import model_based.WEnvironment;
 
 class Agent {
 	
@@ -34,6 +38,7 @@ class Agent {
 	private Environment wumpusWorld;
 	private TransferPercept percept;
 	private AgentFunction agentFunction;
+	private WEnvironment wenv;
 	
 	public Agent(Environment world, TransferPercept perceptTrans, boolean nonDeterministic) {
 				
@@ -54,6 +59,13 @@ class Agent {
 		location = wumpusWorld.getAgentLocation();
 		direction = wumpusWorld.getAgentDirection();
 		setDirection(direction);
+
+		wenv = new WEnvironment();
+		wenv.setCurrentAgentCoordinate(new int[] {1,1});
+		wenv.setCurrentDirection('>');
+		wenv.setLastMove(Move.START);
+		wenv.setLastSquareCoordinate(location);
+		wenv.setPendingActions(new LinkedList<Move>());
 	}
 	
 	public void setIsDead(boolean dead) {
@@ -77,7 +89,7 @@ class Agent {
 	}
 	
 	public int chooseAction() {
-		return agentFunction.process(percept);
+		return agentFunction.process(percept, wenv);
 	}
 	
 	public char getAgentIcon() {
